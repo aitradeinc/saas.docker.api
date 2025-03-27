@@ -3,7 +3,7 @@ By Andy Ng <andy.ng@aitrade.ai>, Senior Software Development Manager at AI TRADE
 
 :shield:  **Disclaimer**: This source code present a conceptual overview of our system architecture. Proprietary configurations, security measures, and specific implementation details have been omitted for confidentiality and security reasons. This information is approved for public sharing by AI TRADE, Inc.
 
-![AI Trade](https://www.aitrade.ai/assets/images/logo.png)
+![AI Trade](https://www.aitrade.ai/logo192.png)
 
 ## Overview
 

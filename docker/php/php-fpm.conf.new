@@ -1,0 +1,34 @@
+;;;;;;;;;;;;;;;;;;;;;
+; FPM Configuration ;
+;;;;;;;;;;;;;;;;;;;;;
+
+[global]
+pid = run/php-fpm.pid
+error_log = log/php-fpm.log
+log_level = notice
+emergency_restart_threshold = 10
+emergency_restart_interval = 1m
+process_control_timeout = 10s
+process.max = 128
+daemonize = yes
+rlimit_files = 65535
+rlimit_core = 0
+events.mechanism = epoll
+systemd_interval = 10
+
+; PHP 8.2 specific optimizations
+php_admin_value[memory_limit] = 1024M
+php_admin_value[max_execution_time] = 30
+php_admin_value[upload_max_filesize] = 64M
+php_admin_value[post_max_size] = 64M
+php_admin_value[opcache.enable] = 1
+php_admin_value[opcache.memory_consumption] = 256
+php_admin_value[opcache.interned_strings_buffer] = 16
+php_admin_value[opcache.max_accelerated_files] = 16000
+php_admin_value[opcache.revalidate_freq] = 0
+php_admin_value[opcache.fast_shutdown] = 1
+php_admin_value[opcache.enable_cli] = 1
+php_admin_value[opcache.jit] = 1235
+php_admin_value[opcache.jit_buffer_size] = 128M
+
+include=etc/php-fpm.d/*.conf 
