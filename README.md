@@ -1,5 +1,5 @@
-# AI TRADE Microservice API for SaaS Platforms (Feb 6, 2022)
-By Andy Ng <andy.ng@aitrade.ai>, Senior Software Development Manager at AI TRADE, Inc.
+# AI TRADE Microservice API for SaaS Platforms
+By Andy Ng <andy.ng@aitrade.ai>, Senior Software Development Manager at AI TRADE, Inc.  (Feb 6, 2022)
 
 :shield:  **Disclaimer**: This source code present a conceptual overview of our system architecture. Proprietary configurations, security measures, and specific implementation details have been omitted for confidentiality and security reasons. This information is approved for public sharing by AI TRADE, Inc.
 
