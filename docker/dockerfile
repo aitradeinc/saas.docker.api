@@ -1,0 +1,98 @@
+FROM php:8.2-fpm
+RUN rm /bin/sh && ln -s /bin/bash /bin/sh
+
+WORKDIR /var/www/html/
+
+# dependencies
+RUN apt-get update
+RUN apt-get install -y \
+    build-essential \
+    libpng-dev \
+    libjpeg62-turbo-dev \
+    libfreetype6-dev \
+    locales \
+    openssl \
+    zip \
+    jpegoptim optipng pngquant gifsicle \
+    vim \
+    libzip-dev \
+    unzip \
+    git \
+    libonig-dev \
+    curl \
+    libpq-dev \
+    cron \
+    gnupg2 \
+    libgmp-dev \
+    libcurl4-openssl-dev \
+    pkg-config \
+    libssl-dev \
+    procps \
+    libc6 \
+    redis-tools
+
+# nodejs
+RUN apt-get install -y gpgv
+RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add -
+RUN echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list
+RUN apt-get update
+RUN rm -rf /var/lib/apt/lists/ && curl -sL https://deb.nodesource.com/setup_18.x | bash -
+RUN apt-get install nodejs -y
+RUN apt-get install -y yarn
+
+# php
+RUN chmod 777 "$PHP_INI_DIR"
+RUN cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
+RUN sed -i -e "s/^ *memory_limit.*/memory_limit = 1024M/g" \
+    -e "s/^ *max_execution_time.*/max_execution_time = 30/g" \
+    -e "s/^ *upload_max_filesize.*/upload_max_filesize = 64M/g" \
+    -e "s/^ *post_max_size.*/post_max_size = 64M/g" \
+    "$PHP_INI_DIR/php.ini"
+
+# Copy custom PHP-FPM configuration
+COPY docker/php/php-fpm.conf.new /usr/local/etc/php-fpm.conf
+
+# install-php-extensions
+ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+RUN chmod +x /usr/local/bin/install-php-extensions && sync
+RUN install-php-extensions \
+    bcmath \
+    sockets \
+    pdo \
+    mysqli \
+    pcntl \
+    exif \
+    gmp \
+    gd \
+    pdo_mysql \
+    pdo_pgsql \
+    mosquitto \
+    opcache \
+    redis \
+    apcu
+RUN install-php-extensions @composer
+
+# xdebug
+RUN mkdir -p /var/log && touch /var/log/xdebug.log && chmod -R 777 /var/log
+ENV XDEBUG_VERSION=3.3.1
+RUN pecl install xdebug-${XDEBUG_VERSION}
+RUN docker-php-ext-enable xdebug
+RUN docker-php-ext-enable apcu
+
+# clear
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# php-fpm
+EXPOSE 9000
+CMD ["php-fpm"]
+
+# golang
+ENV GOLANG_VERSION=1.21.6
+RUN curl -s https://dl.google.com/go/go${GOLANG_VERSION}.linux-amd64.tar.gz | tar -xz -C /usr/local
+ENV GOROOT=/usr/local/go
+ENV GOPATH=/root/go
+ENV PATH=$PATH:/usr/local/go/bin:/root/go/bin
+RUN echo "export GOROOT=/usr/local/go" >> /etc/profile
+RUN echo "export GOPATH=/root/go" >> /etc/profile
+RUN echo "export PATH=\$PATH:/usr/local/go/bin:/root/go/bin" >> /etc/profile
+RUN ln -sf /bin/bash /bin/sh

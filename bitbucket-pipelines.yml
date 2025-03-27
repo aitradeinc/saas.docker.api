@@ -1,0 +1,43 @@
+image:
+  name: php:7.4-fpm
+options:
+  docker: true
+
+pipelines:
+  branches:
+    '{develop,staging,production}':
+      - step:
+          name: Lawyer firms legal references
+          caches:
+            - docker
+          script:
+            - apt-get update && apt-get install -y git
+            - if [ "$BITBUCKET_BRANCH" = "develop" ]; then
+              cd $BITBUCKET_CLONE_DIR;
+              git remote add github git@github.com:aitradeinc/${BITBUCKET_REPO_SLUG}.git;
+              git push github develop --force;
+              fi
+      - step:
+          name: Set docker-compose env
+          script:
+            - cp $BITBUCKET_CLONE_DIR/deploy/docker-compose.$BITBUCKET_BRANCH.yml $BITBUCKET_CLONE_DIR/docker-compose.yml
+          artifacts:
+            - docker-compose.yml
+      - step:
+          name: Rsync Release
+          script:
+            - pipe: atlassian/rsync-deploy:0.5.0
+              variables:
+                USER: root
+                SERVER: api.${BITBUCKET_BRANCH}1.aitrade.ai
+                LOCAL_PATH: $BITBUCKET_CLONE_DIR/
+                REMOTE_PATH:  /root/release/docker.api/
+      - step:
+          name: SSH Docker Compose Up
+          script:
+            - pipe: atlassian/ssh-run:0.2.6
+              variables:
+                SSH_USER: root
+                SERVER: api.${BITBUCKET_BRANCH}1.aitrade.ai
+                MODE: script
+                COMMAND: deploy/docker.api.sh

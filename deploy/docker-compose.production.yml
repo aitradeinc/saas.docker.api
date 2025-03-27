@@ -1,0 +1,212 @@
+version: '3.7'
+
+networks:
+  public-network:
+    external: true
+  private-network:
+    external: false
+
+volumes:
+  mysql-data:
+    external: false
+  timescaledb-data:
+    external: false
+
+services:
+  api.app:
+    container_name: api.app
+    hostname: api.app
+    networks:
+      private-network:
+        aliases:
+          - api.app
+    build:
+      context: docker
+      dockerfile: dockerfile
+    tty: false
+    restart: always
+    working_dir: /var/www/html/
+    volumes:
+      - .:/var/www
+      - ./docker/php:/usr/local/etc
+    expose:
+      - 9000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    labels:
+      - traefik.enable=true
+      # core message api
+      - traefik.http.routers.core-message-api.entrypoints=web
+      - traefik.http.routers.core-message-api.rule=Host("core-message-api.api.aitrade.ai")
+      - traefik.http.routers.core-message-api.service=core-message-api
+      - traefik.http.services.core-message-api.loadbalancer.server.port=2000
+      # tradecopy trading api
+      - traefik.http.routers.core-trading-api.entrypoints=web
+      - traefik.http.routers.core-trading-api.rule=Host("core-trading-api.api.aitrade.ai")
+      - traefik.http.routers.core-trading-api.service=core-trading-api
+      - traefik.http.services.core-trading-api.loadbalancer.server.port=2001
+      # core data api
+      - traefik.http.routers.core-data-api.entrypoints=web
+      - traefik.http.routers.core-data-api.rule=Host("core-data-api.api.aitrade.ai")
+      - traefik.http.routers.core-data-api.service=core-data-api
+      - traefik.http.services.core-data-api.loadbalancer.server.port=2002
+      # web socket
+      - traefik.http.routers.tc-websocket.entrypoints=web
+      - traefik.http.routers.tc-websocket.rule=Host("ws.api.aitrade.ai")
+      - traefik.http.routers.tc-websocket.service=tc-websocket
+      - traefik.http.services.tc-websocket.loadbalancer.server.port=8080
+
+  api.mysql:
+    container_name: api.mysql
+    hostname: api.mysql
+    networks:
+      private-network:
+        aliases:
+          - api.mysql
+    image: mysql:8
+    cap_add:
+      - SYS_NICE
+    command: --default-authentication-plugin=mysql_native_password --log_error_verbosity=3
+    restart: always
+    volumes:
+      - ./docker/mysql/conf:/etc/mysql
+      - ./docker/mysql/log:/var/log/mysql
+      - mysql-data:/var/lib/mysql
+    env_file:
+      - .env
+    environment:
+      MYSQL_USER: user
+      MYSQL_PASSWORD: "changeMe123"
+      MYSQL_ROOT_PASSWORD: "changeMe123"
+      MYSQL_DATABASE: database
+    expose:
+      - 3306
+    ports:
+      - "3306:3306"
+    labels:
+      - traefik.enable=false
+
+  api.nginx:
+    container_name: api.nginx
+    hostname: api.nginx
+    networks:
+      public-network:
+        aliases:
+          - api.nginx
+      private-network:
+        aliases:
+          - api.nginx
+    image: nginx:1
+    depends_on:
+      - api.app
+    restart: always
+    tty: false
+    volumes:
+      - .:/var/www
+      - /etc/modules
+      - ./docker/nginx:/etc/nginx
+      - ./docker/logs/nginx:/var/log/nginx
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.web.loadBalancer.sticky.cookie=true
+      - traefik.http.services.web.loadBalancer.sticky.cookie.name=.api.aitrade.ai
+      - traefik.http.routers.tc-img-api.rule=Host("tc-img-api.api.aitrade.ai")
+      - traefik.http.routers.tc-img-api.entrypoints=web
+      - traefik.http.routers.tc-img-api.service=web
+      - traefik.http.routers.core-billing-api.rule=Host("core-billing-api.api.aitrade.ai")
+      - traefik.http.routers.core-billing-api.entrypoints=web
+      - traefik.http.routers.core-billing-api.service=web
+      - traefik.http.routers.core-transaction-api.rule=Host("core-transaction-api.api.aitrade.ai")
+      - traefik.http.routers.core-transaction-api.entrypoints=web
+      - traefik.http.routers.core-transaction-api.service=web
+      - traefik.http.routers.core-user-api.rule=Host("core-user-api.api.aitrade.ai")
+      - traefik.http.routers.core-user-api.entrypoints=web
+      - traefik.http.routers.core-user-api.service=web
+      - traefik.http.routers.core-product-api.rule=Host("core-product-api.api.aitrade.ai")
+      - traefik.http.routers.core-product-api.entrypoints=web
+      - traefik.http.routers.core-product-api.service=web
+
+  api.redis:
+    container_name: api.redis
+    hostname: api.redis
+    networks:
+      private-network:
+        aliases:
+          - api.redis
+    image: redis:6
+    restart: always
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+    expose:
+      - 6379
+    labels:
+      - traefik.enable=false
+
+  api.timescaledb:
+    container_name: api.timescaledb
+    hostname: api.timescaledb
+    networks:
+      private-network:
+        aliases:
+          - api.timescaledb
+    image: timescale/timescaledb-ha:pg14-latest
+    restart: always
+    volumes:
+      - timescaledb-data:/home/postgres/pgdata/data
+      - ./docker/timescaledb/init.sql:/docker-entrypoint-initdb.d/init.sql
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB}"
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "changeMe123"
+      TS_TUNE: "true"
+      TS_TUNE_MEMORY: "2048MB"
+      TS_TUNE_NUM_CPUS: "2"
+    expose:
+      - 5432
+    ports:
+      - "5432:5432"
+    labels:
+      - traefik.enable=false
+    command:
+      - -cshared_preload_libraries=timescaledb,pg_stat_statements
+      - -cpg_stat_statements.track=all
+
+  # Real-time local/production traffic logs, metrics, synthetic and user monitoring
+  # Employee intends to stop this locally will hold accountable of
+  # reporting 0 working hour and termination without notice
+  api.traefik:
+    container_name: api.traefik
+    hostname: api.traefik
+    networks:
+      public-network:
+        aliases:
+          - api.traefik
+      private-network:
+        aliases:
+          - api.traefik
+    image: traefik:v2.11.13
+    depends_on:
+      - api.mysql
+      - api.app
+      - api.nginx
+      - api.redis
+      - api.timescaledb
+    ports:
+      - "80:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./docker/logs/traefik:/var/log/traefik
+    command:
+      - "--api.insecure=false"
+      - "--api.dashboard=false"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--log.level=INFO"
+      - "--log.filePath=/var/log/traefik/error.log"
+    labels:
+      - traefik.enable=true
