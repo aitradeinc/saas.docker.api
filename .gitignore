@@ -1,0 +1,10 @@
+# pls sort alphabetically!
+# prevent mistakenly commit
+.env
+.idea/
+db-init-scripts/
+develop.env
+html/
+production.env
+staging.env
+docker/logs/
